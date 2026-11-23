@@ -6,11 +6,21 @@
 <title>🎲 サイコロ</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,sans-serif;background:#f5f0eb;color:#333;user-select:none}
+body{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,sans-serif;background:#f5f0eb;color:#333;user-select:none;gap:24px;padding:24px}
+@media(prefers-color-scheme:dark){
+  body{background:#1a1a1e;color:#e8e6e1}
+  .dice{background:#2a2a2e;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+  .dot{background:#e8e6e1}
+  .info{color:#888}
+  .history-item{background:#2a2a2e;border-color:#3a3a3e;color:#e8e6e1}
+  button{background:#c0392b}
+  button:hover{background:#e74c3c}
+  input{background:#2a2a2e;color:#e8e6e1;border-color:#3a3a3e}
+}
 
-.dice{width:120px;height:120px;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.12);display:grid;padding:20px;cursor:pointer;transition:transform .1s}
-.dice:active{transform:scale(.95)}
-.dice.rolling{animation:shake .4s ease-in-out}
+.dice{width:130px;height:130px;background:#fff;border-radius:18px;box-shadow:0 4px 20px rgba(0,0,0,.1);display:grid;padding:22px;cursor:pointer;transition:transform .1s}
+.dice:active{transform:scale(.93)}
+.dice.rolling{animation:shake .45s ease-in-out}
 
 .dot{width:20px;height:20px;background:#333;border-radius:50%;align-self:center;justify-self:center}
 
@@ -21,31 +31,43 @@ body{min-height:100dvh;display:flex;flex-direction:column;align-items:center;jus
 .face-5{grid-template:1fr 1fr 1fr/1fr 1fr 1fr}.face-5 .d1{grid-area:1/1}.face-5 .d2{grid-area:1/3}.face-5 .d3{grid-area:2/2}.face-5 .d4{grid-area:3/1}.face-5 .d5{grid-area:3/3}
 .face-6{grid-template:1fr 1fr 1fr/1fr 1fr}
 
-button{margin-top:32px;padding:14px 48px;font-size:18px;font-weight:600;background:#333;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:background .15s,transform .1s}
+.name-input{text-align:center;padding:8px 16px;font-size:15px;border:1px solid #ddd;border-radius:10px;background:#fff;color:#333;width:200px;font-family:inherit}
+
+button{padding:14px 52px;font-size:17px;font-weight:600;background:#333;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:background .15s,transform .1s;font-family:inherit}
 button:hover{background:#555}
 button:active{transform:scale(.96)}
+button:disabled{opacity:.5;cursor:default}
+
+.info{text-align:center;font-size:14px;color:#888;line-height:1.6;min-height:1.6em}
+
+.history{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;max-width:280px}
+.history-item{width:34px;height:34px;background:#fff;border:1px solid #e0ddd8;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700}
 
 @keyframes shake{
   0%,100%{transform:rotate(0)}
-  20%{transform:rotate(-12deg) scale(1.1)}
-  40%{transform:rotate(10deg)}
-  60%{transform:rotate(-6deg)}
-  80%{transform:rotate(3deg)}
+  20%{transform:rotate(-14deg) scale(1.08)}
+  40%{transform:rotate(12deg)}
+  60%{transform:rotate(-7deg)}
+  80%{transform:rotate(4deg)}
 }
 </style>
 </head>
 <body>
 
-<div class="dice face-1" id="dice">
-  <div class="dot"></div>
-</div>
+<div class="dice face-1" id="dice"><div class="dot"></div></div>
+<input class="name-input" id="name" placeholder="なまえ（任意）" maxlength="20">
 <button id="roll">振る</button>
+<div class="info" id="info"></div>
+<div class="history" id="history"></div>
 
 <script>
-const dice = document.getElementById('dice');
+const diceEl = document.getElementById('dice');
 const btn = document.getElementById('roll');
+const infoEl = document.getElementById('info');
+const nameInput = document.getElementById('name');
+const historyEl = document.getElementById('history');
 
-const faces = {
+const FACES = {
   1: '<div class="dot"></div>',
   2: '<div class="dot d1"></div><div class="dot d2"></div>',
   3: '<div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>',
@@ -54,21 +76,94 @@ const faces = {
   6: '<div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>'
 };
 
-function roll() {
-  dice.classList.add('rolling');
-  btn.disabled = true;
-  const n = Math.floor(Math.random() * 6) + 1;
-  setTimeout(() => {
-    dice.className = 'dice face-' + n;
-    dice.innerHTML = faces[n];
-  }, 200);
-  setTimeout(() => {
-    btn.disabled = false;
-  }, 400);
+let history = [];
+let lastAt = 0;
+let rolling = false;
+
+function showFace(n) {
+  diceEl.className = 'dice face-' + n;
+  diceEl.innerHTML = FACES[n];
 }
 
-btn.addEventListener('click', roll);
-dice.addEventListener('click', roll);
+function addHistory(n) {
+  history.push(n);
+  if (history.length > 12) history.shift();
+  historyEl.innerHTML = history.map(v => '<div class="history-item">' + v + '</div>').join('');
+}
+
+function showInfo(name, n) {
+  const who = name ? escHtml(name) : '誰か';
+  infoEl.innerHTML = '<b>' + who + '</b> が <b>' + n + '</b> を出した';
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function animateRoll(n, name) {
+  diceEl.classList.add('rolling');
+  setTimeout(() => {
+    showFace(n);
+    addHistory(n);
+    if (name !== undefined) showInfo(name, n);
+  }, 220);
+  setTimeout(() => diceEl.classList.remove('rolling'), 450);
+}
+
+async function doRoll() {
+  if (rolling) return;
+  rolling = true;
+  btn.disabled = true;
+
+  const n = Math.floor(Math.random() * 6) + 1;
+  const name = nameInput.value.trim() || null;
+
+  animateRoll(n, name);
+
+  try {
+    const res = await fetch('/api/roll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: n, name })
+    });
+    const data = await res.json();
+    lastAt = data.at;
+  } catch (e) {}
+
+  setTimeout(() => {
+    rolling = false;
+    btn.disabled = false;
+  }, 450);
+}
+
+async function poll() {
+  try {
+    const res = await fetch('/api/roll');
+    const data = await res.json();
+    if (data.at > lastAt) {
+      lastAt = data.at;
+      if (!rolling) {
+        animateRoll(data.value, data.name);
+      }
+    }
+  } catch (e) {}
+}
+
+btn.addEventListener('click', doRoll);
+diceEl.addEventListener('click', doRoll);
+
+try {
+  const saved = localStorage.getItem('dice-name');
+  if (saved) nameInput.value = saved;
+} catch(e) {}
+nameInput.addEventListener('input', () => {
+  try { localStorage.setItem('dice-name', nameInput.value); } catch(e) {}
+});
+
+poll();
+setInterval(poll, 2000);
 </script>
 </body>
 </html>
